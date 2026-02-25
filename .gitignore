@@ -1,2 +1,4 @@
 *.class
-first.txt
+*.txt
+!formattedData.txt
+!twentyFourSongs.txt

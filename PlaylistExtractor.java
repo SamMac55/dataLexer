@@ -8,14 +8,19 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
     Artist currentArtist;
     Album currentAlbum;
 
-    int artistIdCounter = 0;
-    int albumIdCounter = 0;
-    int songIdCounter = 0;
-    int existenceIdCounter = 0;
-    int accredationIdCounter = 0;
+    int artistIdCounter;
+    int albumIdCounter;
+    int songIdCounter;
+    int existenceIdCounter;
+    int accredationIdCounter;
+
+    int numPlaylistsToParse;
+    int playlistsParsed=0;
+    int playListSongLimit;
+    int numSongsInCurrentPlaylist=0;
 
     Set<Playlist> playlists = new HashSet<>();
-    HashMap<String, Song> songs = new HashMap<>();
+    Set<Song> songs = new HashSet<>();
     HashMap<String, Album> albums = new HashMap<>();
     HashMap<String, Artist> artists = new HashMap<>();
     Set<Existence> existences = new HashSet<>();
@@ -29,8 +34,23 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
         JSONParser parser = new JSONParser(tokens);
 
         ParseTree tree = parser.json();
+        
+        //args should look like: 
+        // java PlaylistExtractor <startingArtistId> <startingAlbumId> <startingSongId> <startingExistenceId> <startingAccredationId> <numPlaylistsToParse> <playListSongLimit>
+        if(args.length != 7){
+            System.out.println("Usage: java PlaylistExtractor <startingArtistId> <startingAlbumId> <startingSongId> <startingExistenceId> <startingAccredationId> <numPlaylistsToParse> <playListSongLimit>");
+            return;
+        }
 
-        PlaylistExtractor extractor = new PlaylistExtractor();
+        PlaylistExtractor extractor = new PlaylistExtractor(
+        Integer.parseInt(args[0]), // artistIdStart
+        Integer.parseInt(args[1]), // albumIdStart
+        Integer.parseInt(args[2]), // songIdStart
+        Integer.parseInt(args[3]), // existenceIdStart
+        Integer.parseInt(args[4]), // accredationIdStart
+        Integer.parseInt(args[5]), // numPlaylistsToParse
+        Integer.parseInt(args[6])  // playListSongLimit
+        );
         extractor.visit(tree);
 
         extractor.printResults();
@@ -38,37 +58,48 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
 
     @Override
     public Void visitPair(JSONParser.PairContext ctx) {
-
+        if (numPlaylistsToParse != -1 && playlistsParsed >= numPlaylistsToParse) {
+            return null; // completely stop processing
+        }
         String key = stripQuotes(ctx.STRING().getText());
 
-        if (key.equals("name")) {
+        if (key.equals("name") && (numPlaylistsToParse == -1 || playlistsParsed < numPlaylistsToParse)) { 
             currentPlaylist = new Playlist();
             currentPlaylist.setName(getValue(ctx));
+            numSongsInCurrentPlaylist=0;
         }
 
         else if (key.equals("pid")) {
             currentPlaylist.setPid(getValue(ctx));
             playlists.add(currentPlaylist);
+            playlistsParsed++;
         }
 
-        else if (key.equals("artist_name") && !artists.containsKey(getValue(ctx))) {
-            currentArtist = new Artist();
-            currentArtist.setName(getValue(ctx));
-            currentArtist.setId(artistIdCounter++);
-            artists.put(currentArtist.name, currentArtist);
+        else if (key.equals("artist_name")) {
+            if(!artists.containsKey(getValue(ctx))){
+                currentArtist = new Artist();
+                currentArtist.setName(getValue(ctx));
+                currentArtist.setId(artistIdCounter++);
+                artists.put(currentArtist.name, currentArtist);
+            }else{
+                currentArtist = artists.get(getValue(ctx));
+            }
         }
 
-        else if (key.equals("album_name") && !albums.containsKey(getValue(ctx))) {
-            currentAlbum = new Album();
-            currentAlbum.setName(getValue(ctx));
-            currentAlbum.setArtistName(currentArtist.name);
+        else if (key.equals("album_name")) {
+            if(!albums.containsKey(getValue(ctx))){
+                currentAlbum = new Album();
+                currentAlbum.setName(getValue(ctx));
+                currentAlbum.setArtistName(currentArtist.name);
+                currentAlbum.setId(albumIdCounter++);
+                currentAlbum.findArtistId(artists);
+                albums.put(currentAlbum.name, currentAlbum);
+            }else{
+                currentAlbum = albums.get(getValue(ctx));
+            }
             currentTrack.setAlbum(currentAlbum.name);
-            currentAlbum.setId(albumIdCounter++);
-            currentAlbum.findArtistId(artists);
-            albums.put(currentAlbum.name, currentAlbum);
-            songs.put(currentTrack.title, currentTrack);
         }
-
+        //need to fix the songs so they are not duplicated and have the correct album and artist information
         else if (key.equals("track_name")) {
             currentTrack = new Song();
             currentTrack.setTitle(getValue(ctx));
@@ -76,10 +107,17 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
         }
 
         else if (key.equals("duration_ms")) {
+
+            if (playListSongLimit != -1 &&
+                numSongsInCurrentPlaylist > playListSongLimit) {
+                return visitChildren(ctx); // skip this song entirely
+            }
+
             currentTrack.setDuration(getValue(ctx));
 
+            songs.add(currentTrack);
+            numSongsInCurrentPlaylist++;
 
-            // Relationship tables
             existences.add(
                 new Existence(existenceIdCounter++, currentPlaylist.pid, currentTrack.id)
             );
@@ -91,33 +129,68 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
 
         return visitChildren(ctx);
     }
+
+    //written out default constructor if you want counts to start at 0
+    public PlaylistExtractor(){
+        artistIdCounter = 0;
+        albumIdCounter = 0;
+        songIdCounter = 0;
+        existenceIdCounter = 0;
+        accredationIdCounter = 0;
+        numPlaylistsToParse = -1;
+        playListSongLimit = -1;
+    }
+
+    //constructor that allows you to set starting counts for the ids.
+    public PlaylistExtractor(int artistIdCounter, int albumIdCounter, int songIdCounter, int existenceIdCounter, int accredationIdCounter, int numPlaylistsToParse, int playListSongLimit){ 
+        this.artistIdCounter = artistIdCounter;
+        this.albumIdCounter = albumIdCounter;
+        this.songIdCounter = songIdCounter;
+        this.existenceIdCounter = existenceIdCounter;
+        this.accredationIdCounter = accredationIdCounter;
+        this.numPlaylistsToParse = numPlaylistsToParse;
+        this.playListSongLimit = playListSongLimit;
+    }
+
+    //helper method
     private String stripQuotes(String s) {
         return s.substring(1, s.length() - 1);
     }
 
+    //helper method to get the value of a pair context without quotes
     private String getValue(JSONParser.PairContext ctx) {
         return ctx.value().getText().replace("\"", "");
     }
 
     private void printResults(){
+        System.out.println("-- ARTISTS --");
         for ( Artist artist : artists.values()) {
             System.out.println(artist);
         }
+        System.out.println("-- ALBUMS --");
         for (Album album : albums.values()) {
             System.out.println(album);
         }
-        for (Song song : songs.values()) {
+        System.out.println("-- SONGS --");
+        for (Song song : songs) {
             System.out.println(song);
         }
+        System.out.println("-- PLAYLISTS --");
         for (Playlist playlist : playlists) {
             System.out.println(playlist);
         }
+        System.out.println("-- EXISTENCES --");
         for (Existence existence : existences) {
             System.out.println(existence);
         }
+        System.out.println("-- ACCREDITATIONS --");
         for (Accredation accredation : accreditations) {
             System.out.println(accredation);
         }
+        System.out.println("-- SUMMARY --");
+        System.out.println("Extracted a total of " + artists.size() + " artists, " 
+        + albums.size() + " albums, " + songs.size() + " songs, " + playlists.size() 
+        + " playlists, " + existences.size() + " existences, and " + accreditations.size() + " accreditations.");
     }
 }
 
