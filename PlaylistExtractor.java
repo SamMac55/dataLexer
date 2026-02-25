@@ -3,22 +3,26 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import java.util.*;
 
 public class PlaylistExtractor extends JSONBaseVisitor<Void> {
+    //keep track of the current playlist, song, artist, and album we are on as we traverse the tree
     Song currentTrack;
     Playlist currentPlaylist;
     Artist currentArtist;
     Album currentAlbum;
-
+    
+    //counters for the ids of the entities
     int artistIdCounter;
     int albumIdCounter;
     int songIdCounter;
     int existenceIdCounter;
     int accredationIdCounter;
 
+    //limits for how many playlists and songs to parse, -1 means no limit
     int numPlaylistsToParse;
     int playlistsParsed=0;
     int playListSongLimit;
     int numSongsInCurrentPlaylist=0;
 
+    //structures to ensure uniquness and hold extracted values
     Set<Playlist> playlists = new HashSet<>();
     Set<Song> songs = new HashSet<>();
     HashMap<String, Album> albums = new HashMap<>();
@@ -28,6 +32,7 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
 
     public static void main(String[] args) throws Exception {
 
+        //antlr4 setup to read from standard input and parse the JSON
         CharStream input = CharStreams.fromStream(System.in);
         JSONLexer lexer = new JSONLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
@@ -42,6 +47,7 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
             return;
         }
 
+        //creating the playlist extractor with the provided starts/limits
         PlaylistExtractor extractor = new PlaylistExtractor(
         Integer.parseInt(args[0]), // artistIdStart
         Integer.parseInt(args[1]), // albumIdStart
@@ -51,6 +57,8 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
         Integer.parseInt(args[5]), // numPlaylistsToParse
         Integer.parseInt(args[6])  // playListSongLimit
         );
+
+        //call visit to start extraction
         extractor.visit(tree);
 
         extractor.printResults();
@@ -58,11 +66,21 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
 
     @Override
     public Void visitPair(JSONParser.PairContext ctx) {
+        //stop parsing if we are done with playlists
         if (numPlaylistsToParse != -1 && playlistsParsed >= numPlaylistsToParse) {
             return null; // completely stop processing
         }
         String key = stripQuotes(ctx.STRING().getText());
-
+        //stop parsing artists and albums if we reached the song limit 
+        if (playListSongLimit != -1 && 
+            numSongsInCurrentPlaylist > playListSongLimit && 
+            (key.equals("artist_name") || 
+            key.equals("album_name") || 
+            key.equals("track_name") || 
+            key.equals("duration_ms"))) { 
+                return visitChildren(ctx); 
+        }
+        //handle the different keys we care about
         if (key.equals("name") && (numPlaylistsToParse == -1 || playlistsParsed < numPlaylistsToParse)) { 
             currentPlaylist = new Playlist();
             currentPlaylist.setName(getValue(ctx));
@@ -76,6 +94,7 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
         }
 
         else if (key.equals("artist_name")) {
+            //ensures uniquness
             if(!artists.containsKey(getValue(ctx))){
                 currentArtist = new Artist();
                 currentArtist.setName(getValue(ctx));
