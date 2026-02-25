@@ -9,6 +9,6 @@ public class Playlist {
         this.pid = pid;
     }
     public String toString() {
-        return "INSERT INTO playlists (playlist_id,username, name,duration) VALUES ('" + pid + "', 'USERNAME', '" + name + "', 'DURATION');";
+        return "INSERT INTO playlists (playlist_id,username, name,duration) VALUES (" + pid + ", 'USERNAME', '" + name + "', 'DURATION');";
     }
 }

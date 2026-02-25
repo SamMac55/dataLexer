@@ -19,7 +19,7 @@ public class Existence {
     }
     @Override
     public String toString() {
-        return "INSERT INTO existence (existence_id, song_id, playlist_id) VALUES (" + id + ", " + songId + ", '" + pid + "');";
+        return "INSERT INTO existence (existence_id, song_id, playlist_id) VALUES (" + id + ", " + songId + ", " + pid + ");";
     }
     @Override
     public boolean equals(Object obj) {

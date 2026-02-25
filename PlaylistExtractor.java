@@ -68,12 +68,12 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
     public Void visitPair(JSONParser.PairContext ctx) {
         //stop parsing if we are done with playlists
         if (numPlaylistsToParse != -1 && playlistsParsed >= numPlaylistsToParse) {
-            return null; // completely stop processing
+            return visitChildren(ctx); // completely stop processing
         }
         String key = stripQuotes(ctx.STRING().getText());
         //stop parsing artists and albums if we reached the song limit 
         if (playListSongLimit != -1 && 
-            numSongsInCurrentPlaylist > playListSongLimit && 
+            numSongsInCurrentPlaylist >= playListSongLimit && 
             (key.equals("artist_name") || 
             key.equals("album_name") || 
             key.equals("track_name") || 
@@ -81,7 +81,7 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
                 return visitChildren(ctx); 
         }
         //handle the different keys we care about
-        if (key.equals("name") && (numPlaylistsToParse == -1 || playlistsParsed < numPlaylistsToParse)) { 
+        if (key.equals("name")) { 
             currentPlaylist = new Playlist();
             currentPlaylist.setName(getValue(ctx));
             numSongsInCurrentPlaylist=0;
@@ -116,7 +116,7 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
             }else{
                 currentAlbum = albums.get(getValue(ctx));
             }
-            currentTrack.setAlbum(currentAlbum.name);
+            currentTrack.setAlbum(currentAlbum.id);
         }
         //need to fix the songs so they are not duplicated and have the correct album and artist information
         else if (key.equals("track_name")) {
