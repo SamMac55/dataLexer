@@ -1,4 +1,4 @@
-# Million Playlist Dataset JSON → SQL Converter  
+# JSON Song Dataset → SQL Converter  
 ## ANTLR4-Based JSON Parser Project
 
 ---
@@ -69,6 +69,7 @@ PlaylistExtractor.java- main program containing Main() method
 JSON.g4- antlr grammar g4 file from https://github.com/antlr/grammars-v4/blob/master/json/JSON.g4  
 (ANTLR-generated files from JSON.g4)  
 formattedData.txt- output file  
+twentyFourSongs.txt - output file with new version (summary and number of playlist specifications)  
 
 ## How to build and run
 1. Generate the parser files
