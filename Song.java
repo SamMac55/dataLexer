@@ -3,7 +3,7 @@ import java.util.Objects;
 public class Song {
     String title;
     int albumid;
-    String duration;
+    double duration;    
     int id;
     public void setTitle(String title) {
         this.title = title;
@@ -11,7 +11,7 @@ public class Song {
     public void setAlbum(int albumid) {
         this.albumid = albumid; 
     }
-    public void setDuration(String duration) {
+    public void setDuration(double duration) {
         this.duration = duration;
     }
     public void setId(int id) {
@@ -19,7 +19,7 @@ public class Song {
     }
     @Override
     public String toString(){
-        return "INSERT INTO songs (song_id, album, title, duration) VALUES (" + id + ", " + albumid + ", '" + title + "', " + duration + ");";
+        return "INSERT INTO songs (song_id, album, title, duration) VALUES (" + id + ", " + albumid + ", '" + title + "', " + String.format("%.2f", duration) + ");";
     }
     @Override
     public boolean equals(Object obj) {

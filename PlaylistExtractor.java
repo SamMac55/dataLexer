@@ -132,7 +132,7 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
                 return visitChildren(ctx); // skip this song entirely
             }
 
-            currentTrack.setDuration(getValue(ctx));
+            currentTrack.setDuration(Double.parseDouble(getValue(ctx))/60000); // convert ms to minutes
 
             songs.add(currentTrack);
             numSongsInCurrentPlaylist++;
