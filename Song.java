@@ -30,13 +30,13 @@ public class Song {
         // Cast obj to Person
         Song a = (Song) obj;
         // Compare fields for logical equality
-        return Objects.equals(title, a.title) && Objects.equals(albumid, a.albumid) && Objects.equals(duration, a.duration);
+        return Objects.equals(title, a.title) && Objects.equals(albumid, a.albumid);
     }
 
     @Override
     public int hashCode() {
         // Generate hash based on the same fields used in equals()
-        return Objects.hash(title, albumid, duration);
+        return Objects.hash(title, albumid);
     }
 }
     

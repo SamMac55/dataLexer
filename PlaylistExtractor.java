@@ -29,6 +29,7 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
     HashMap<String, Artist> artists = new HashMap<>();
     Set<Existence> existences = new HashSet<>();
     Set<Accredation> accreditations = new HashSet<>();
+    HashMap <String, Song> songsMap = new HashMap<>();
 
     public static void main(String[] args) throws Exception {
 
@@ -66,88 +67,104 @@ public class PlaylistExtractor extends JSONBaseVisitor<Void> {
 
     @Override
     public Void visitPair(JSONParser.PairContext ctx) {
-        //stop parsing if we are done with playlists
-        if (numPlaylistsToParse != -1 && playlistsParsed >= numPlaylistsToParse) {
-            return visitChildren(ctx); // completely stop processing
-        }
-        String key = stripQuotes(ctx.STRING().getText());
-        //stop parsing artists and albums if we reached the song limit 
-        if (playListSongLimit != -1 && 
-            numSongsInCurrentPlaylist >= playListSongLimit && 
-            (key.equals("artist_name") || 
-            key.equals("album_name") || 
-            key.equals("track_name") || 
-            key.equals("duration_ms"))) { 
-                return visitChildren(ctx); 
-        }
-        //handle the different keys we care about
-        if (key.equals("name")) { 
-            currentPlaylist = new Playlist();
-            currentPlaylist.setName(getValue(ctx));
-            numSongsInCurrentPlaylist=0;
-        }
 
-        else if (key.equals("pid")) {
-            currentPlaylist.setPid(getValue(ctx));
-            playlists.add(currentPlaylist);
-            playlistsParsed++;
-        }
-
-        else if (key.equals("artist_name")) {
-            //ensures uniquness
-            if(!artists.containsKey(getValue(ctx))){
-                currentArtist = new Artist();
-                currentArtist.setName(getValue(ctx));
-                currentArtist.setId(artistIdCounter++);
-                artists.put(currentArtist.name, currentArtist);
-            }else{
-                currentArtist = artists.get(getValue(ctx));
-            }
-        }
-
-        else if (key.equals("album_name")) {
-            if(!albums.containsKey(getValue(ctx))){
-                currentAlbum = new Album();
-                currentAlbum.setName(getValue(ctx));
-                currentAlbum.setArtistName(currentArtist.name);
-                currentAlbum.setId(albumIdCounter++);
-                currentAlbum.findArtistId(artists);
-                albums.put(currentAlbum.name, currentAlbum);
-            }else{
-                currentAlbum = albums.get(getValue(ctx));
-            }
-            currentTrack.setAlbum(currentAlbum.id);
-        }
-        //need to fix the songs so they are not duplicated and have the correct album and artist information
-        else if (key.equals("track_name")) {
-            currentTrack = new Song();
-            currentTrack.setTitle(getValue(ctx));
-            currentTrack.setId(songIdCounter++);
-        }
-
-        else if (key.equals("duration_ms")) {
-
-            if (playListSongLimit != -1 &&
-                numSongsInCurrentPlaylist > playListSongLimit) {
-                return visitChildren(ctx); // skip this song entirely
-            }
-
-            currentTrack.setDuration(Double.parseDouble(getValue(ctx))/60000); // convert ms to minutes
-
-            songs.add(currentTrack);
-            numSongsInCurrentPlaylist++;
-
-            existences.add(
-                new Existence(existenceIdCounter++, currentPlaylist.pid, currentTrack.id)
-            );
-
-            accreditations.add(
-                new Accredation(accredationIdCounter++, currentTrack.id, currentArtist.id)
-            );
-        }
-
+    if (numPlaylistsToParse != -1 && playlistsParsed >= numPlaylistsToParse) {
         return visitChildren(ctx);
     }
+
+    String key = stripQuotes(ctx.STRING().getText());
+
+    if (playListSongLimit != -1 &&
+        numSongsInCurrentPlaylist >= playListSongLimit &&
+        (key.equals("artist_name") ||
+         key.equals("album_name") ||
+         key.equals("track_name") ||
+         key.equals("duration_ms"))) {
+        return visitChildren(ctx);
+    }
+
+    if (key.equals("name")) {
+        currentPlaylist = new Playlist();
+        currentPlaylist.setName(getValue(ctx));
+        numSongsInCurrentPlaylist = 0;
+    }
+
+    else if (key.equals("pid")) {
+        currentPlaylist.setPid(getValue(ctx));
+        playlists.add(currentPlaylist);
+        playlistsParsed++;
+    }
+
+    else if (key.equals("artist_name")) {
+
+        if (!artists.containsKey(getValue(ctx))) {
+            currentArtist = new Artist();
+            currentArtist.setName(getValue(ctx));
+            currentArtist.setId(artistIdCounter++);
+            artists.put(currentArtist.name, currentArtist);
+        } else {
+            currentArtist = artists.get(getValue(ctx));
+        }
+    }
+
+    else if (key.equals("track_name")) {
+
+        currentTrack = new Song();
+        currentTrack.setTitle(getValue(ctx));
+        currentTrack.setId(songIdCounter++);
+    }
+
+    else if (key.equals("duration_ms")) {
+
+        if (playListSongLimit != -1 &&
+            numSongsInCurrentPlaylist >= playListSongLimit) {
+            return visitChildren(ctx);
+        }
+
+        currentTrack.setDuration(Double.parseDouble(getValue(ctx)) / 60000);
+    }
+
+    else if (key.equals("album_name")) {
+
+        String albumKey = currentArtist.name + "||" + getValue(ctx);
+
+        if (!albums.containsKey(albumKey)) {
+            currentAlbum = new Album();
+            currentAlbum.setName(getValue(ctx));
+            currentAlbum.setArtistName(currentArtist.name);
+            currentAlbum.setId(albumIdCounter++);
+            currentAlbum.findArtistId(artists);
+            albums.put(albumKey, currentAlbum);
+        } else {
+            currentAlbum = albums.get(albumKey);
+        }
+
+        currentTrack.setAlbum(currentAlbum.id);
+
+        String songKey = currentArtist.name + "||"
+                       + currentTrack.title + "||"
+                       + currentAlbum.name;
+
+        if (songsMap.containsKey(songKey)) {
+            currentTrack = songsMap.get(songKey);
+        } else {
+            songsMap.put(songKey, currentTrack);
+            songs.add(currentTrack);
+        }
+
+        numSongsInCurrentPlaylist++;
+
+        existences.add(
+            new Existence(existenceIdCounter++, currentPlaylist.pid, currentTrack.id)
+        );
+
+        accreditations.add(
+            new Accredation(accredationIdCounter++, currentTrack.id, currentArtist.id)
+        );
+    }
+
+    return visitChildren(ctx);
+}
 
     //written out default constructor if you want counts to start at 0
     public PlaylistExtractor(){
